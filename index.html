@@ -1,0 +1,543 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Viber Order Assistant</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f5f7;
+  color: #222;
+  margin: 0;
+  padding: 12px;
+}
+
+.container { max-width: 760px; margin: auto; }
+
+.card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 15px;
+  margin-bottom: 14px;
+}
+
+h1 { font-size: 24px; }
+h2 { font-size: 19px; margin-top: 0; }
+
+label {
+  display: block;
+  margin-top: 12px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 11px;
+  margin-top: 5px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;
+  background: white;
+}
+
+button {
+  padding: 11px 14px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #2868d7;
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.secondary { background: #e8eef9; color: #214b91; }
+.danger { background: #ffeded; color: #a52424; }
+
+.rowhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.product, .variant {
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.variant { background: #fafafa; }
+
+.hint { color: #666; font-size: 13px; line-height: 1.5; }
+
+#output {
+  min-height: 320px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.summary {
+  background: #f6f7f9;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+#status { color: #23652e; }
+
+@media(max-width:540px) {
+  body { padding: 8px; }
+  .card { padding: 12px; }
+  h1 { font-size: 22px; }
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Viber Order Assistant</h1>
+<p class="hint">
+Prepare order messages for Viber. This tool does not connect to your Page.
+</p>
+
+<div class="card">
+<h2>Customer Information</h2>
+
+<label>Customer Name</label>
+<input id="customer" placeholder="May">
+
+<label>Order Source</label>
+<select id="source">
+  <option value="FB">Facebook (FB)</option>
+  <option value="TT">TikTok (TT)</option>
+</select>
+
+<label>Phone Number</label>
+<input id="phone" inputmode="tel"
+       placeholder="၀၉၇၉၇၈၃၉၈၇၉">
+
+<label>Receiver Name (Optional)</label>
+<input id="receiver" placeholder="Receiver name">
+
+<label>Address</label>
+<textarea id="address" rows="2"
+  placeholder="အမှတ် ၃၁၃၊ မြတ်မင်္ဂလာကွန်ဒို..."></textarea>
+
+<label>Payment Status</label>
+<select id="payment">
+  <option value="Paid">Paid</option>
+  <option value="Unpaid">‼️မရှင်းရသေးပါ။</option>
+</select>
+
+</div>
+
+<div class="card">
+<div class="rowhead">
+  <h2>Products</h2>
+  <button type="button" id="addProduct">+ Add Product</button>
+</div>
+
+<p class="hint">
+Product တစ်ခုမှာ အရောင်နဲ့ Size မတူတာတွေ အများကြီး ထည့်နိုင်ပါတယ်။
+</p>
+
+<div id="products"></div>
+</div>
+
+<div class="card">
+<h2>Note</h2>
+
+<label>Choose a Note</label>
+<select id="noteOption">
+  <option value="">No Note</option>
+  <option value="ယခင်အမှာများနှင့်ပေါင်းပို့ပေးပါရန်။">
+    ယခင်အမှာများနှင့်ပေါင်းပို့ပေးပါရန်။
+  </option>
+  <option value="မပို့မီ ဖုန်းကြိုဆက်ပေးပါရန်။">
+    မပို့မီ ဖုန်းကြိုဆက်ပေးပါရန်။
+  </option>
+</select>
+
+<label>Or Write Your Own Note</label>
+<input id="customNote"
+  placeholder="ကိုယ်တိုင် Note ရေးနိုင်ပါတယ်">
+
+<p class="hint">
+ကိုယ်တိုင်ရေးထားတဲ့ Note ရှိရင် အဲဒါကို ဦးစားပေးအသုံးပြုပါမယ်။
+</p>
+</div>
+
+<div class="card">
+<h2>Order Summary</h2>
+<div id="summary" class="summary"></div>
+</div>
+
+<div class="card">
+<h2>Generated Viber Message</h2>
+<textarea id="output" readonly></textarea>
+
+<button type="button" id="copy">Copy Order Message</button>
+<button type="button" class="secondary" id="selectText">
+Select Text
+</button>
+
+<p id="status"></p>
+</div>
+
+</div>
+
+<script>
+const productsRoot = document.getElementById("products");
+const output = document.getElementById("output");
+
+function englishDigits(value) {
+  const digits = "၀၁၂၃၄၅၆၇၈၉";
+  return String(value).replace(/[၀-၉]/g, ch =>
+    String(digits.indexOf(ch))
+  );
+}
+
+function money(value) {
+  return Math.round(Number(value) || 0)
+    .toLocaleString("en-US");
+}
+
+function addVariant(variantsRoot) {
+  const variant = document.createElement("div");
+  variant.className = "variant";
+
+  // New variant fields start empty.
+  variant.innerHTML = `
+    <div class="rowhead">
+      <strong>Color / Size</strong>
+      <button type="button" class="danger removeVariant">
+        Remove
+      </button>
+    </div>
+
+    <label>Color / Code</label>
+    <input class="color" placeholder="03 Gray">
+
+    <label>Color Detail (Optional)</label>
+    <input class="detail" placeholder="Short Sleeve / No.80">
+
+    <label>Size</label>
+    <input class="size" placeholder="M">
+
+    <label>Quantity</label>
+    <input class="qty" type="number" min="1" step="1" value="1">
+  `;
+
+  variantsRoot.appendChild(variant);
+
+  variant.querySelector(".removeVariant").onclick = () => {
+    variant.remove();
+    updateOrder();
+  };
+
+  variant.querySelectorAll("input").forEach(input => {
+    input.addEventListener("input", updateOrder);
+  });
+
+  updateOrder();
+}
+
+function addProduct() {
+  const product = document.createElement("div");
+  product.className = "product";
+
+  product.innerHTML = `
+    <div class="rowhead">
+      <h3>Product</h3>
+      <button type="button" class="danger removeProduct">
+        Remove Product
+      </button>
+    </div>
+
+    <label>Country</label>
+    <select class="country">
+      <option value="🇹🇭">🇹🇭 Thailand</option>
+      <option value="🇯🇵">🇯🇵 Japan</option>
+    </select>
+
+    <label>Product Name</label>
+    <input class="productName"
+      placeholder="Polo Sweater">
+
+    <label>Product Title Detail (Optional)</label>
+    <input class="productPattern" placeholder="e.g. Camp">
+
+    <label>Price per Piece (Mmk)</label>
+    <input class="price" type="number" min="0" step="1"
+      placeholder="72900">
+
+    <div class="rowhead">
+      <strong>Colors / Sizes</strong>
+      <button type="button" class="secondary addVariant">
+        + Add Color / Size
+      </button>
+    </div>
+
+    <div class="variants"></div>
+  `;
+
+  productsRoot.appendChild(product);
+
+  product.querySelector(".removeProduct").onclick = () => {
+    product.remove();
+    updateOrder();
+  };
+
+  product.querySelector(".addVariant").onclick = () => {
+    addVariant(product.querySelector(".variants"));
+  };
+
+  product.querySelectorAll("input, select").forEach(input => {
+    input.addEventListener("input", updateOrder);
+    input.addEventListener("change", updateOrder);
+  });
+
+  addVariant(product.querySelector(".variants"));
+  updateOrder();
+}
+
+function getProducts() {
+  return [...document.querySelectorAll(".product")].map(product => {
+    const price = Math.max(
+      0, Number(product.querySelector(".price").value) || 0
+    );
+
+    const variants = [...product.querySelectorAll(".variant")].map(v => {
+      const qty = Math.max(
+        0, Math.floor(Number(v.querySelector(".qty").value) || 0)
+      );
+
+      return {
+        color: v.querySelector(".color").value.trim(),
+        detail: v.querySelector(".detail").value.trim(),
+        size: v.querySelector(".size").value.trim(),
+        qty: qty,
+        price: price,
+        total: qty * price
+      };
+    });
+
+    return {
+      country: product.querySelector(".country").value,
+      name: product.querySelector(".productName").value.trim(),
+      pattern: product.querySelector(".productPattern").value.trim(),
+      price: price,
+      variants: variants
+    };
+  });
+}
+
+function buildOrder() {
+  const customer =
+    document.getElementById("customer").value.trim()
+    || "Customer Name";
+
+  const source = document.getElementById("source").value;
+  const phone = englishDigits(
+    document.getElementById("phone").value.trim()
+  );
+
+  const receiver =
+    document.getElementById("receiver").value.trim();
+
+  const address =
+    document.getElementById("address").value.trim()
+    || "Pending ‼️";
+
+  const payment = document.getElementById("payment").value;
+
+  const customNote =
+    document.getElementById("customNote").value.trim();
+
+  const selectedNote =
+    document.getElementById("noteOption").value;
+
+  const note = customNote || selectedNote;
+
+  const products = getProducts();
+
+  let totalQty = 0;
+  let totalPrice = 0;
+  let equation = [];
+
+  // Customer name is intentionally NOT bold.
+  const lines = [customer + " (" + source + ")", ""];
+
+  products.forEach(product => {
+    lines.push(
+      product.country + " **" +
+      (product.name || "Product Name") + "**"
+    );
+
+    // Ignore completely empty variants.
+    const filledVariants = product.variants.filter(v =>
+      v.color || v.detail || v.size
+    );
+
+    filledVariants.forEach(v => {
+      let description = v.color || "";
+
+      if (v.detail) {
+        description += (description ? " | " : "") + v.detail;
+      }
+
+      // Multiple variants: show size in parentheses.
+      // Single variant: show Size on its own line below.
+      if (filledVariants.length > 1) {
+        if (v.size) {
+          description += " (Size-" + v.size + ")";
+        }
+        lines.push(description || "Color Pending");
+      } else {
+        lines.push(description || "Color Pending");
+        lines.push("Size - " + (v.size || "Pending"));
+      }
+
+      totalQty += v.qty;
+      totalPrice += v.total;
+
+      if (v.qty > 0 && product.price > 0) {
+        equation.push(
+          v.qty > 1
+            ? money(product.price) + "*" + v.qty
+            : money(product.price)
+        );
+      }
+    });
+
+    lines.push("");
+    lines.push(money(product.price) + " Mmk");
+    lines.push("");
+  });
+
+  lines.push("**Total - " + totalQty + " Items**");
+
+  if (equation.length) {
+    lines.push(
+      equation.join("+") + "=" + money(totalPrice) + " Mmk"
+    );
+  } else {
+    lines.push("0 Mmk");
+  }
+
+  lines.push("");
+  lines.push(
+    payment === "Paid"
+      ? "**Paid**"
+      : "**‼️မရှင်းရသေးပါ။**"
+  );
+
+  lines.push("");
+
+  if (phone) lines.push(phone);
+  if (receiver) lines.push(receiver);
+  if (address) lines.push(address);
+
+  if (note) {
+    lines.push("");
+    lines.push("⚠️ **Note -** " + note);
+  }
+
+  return {
+    text: lines.join("\n"),
+    totalQty: totalQty,
+    totalPrice: totalPrice
+  };
+}
+
+function updateOrder() {
+  const result = buildOrder();
+
+  output.value = result.text;
+
+  document.getElementById("summary").textContent =
+    "Total - " + result.totalQty +
+    " Items | Total Price - " + money(result.totalPrice) + " Mmk";
+
+  document.getElementById("status").textContent = "";
+}
+
+document.getElementById("addProduct").onclick = addProduct;
+
+[
+  "customer", "source", "phone", "receiver",
+  "address", "payment", "noteOption", "customNote"
+].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener("input", updateOrder);
+  el.addEventListener("change", updateOrder);
+});
+
+// Convert Myanmar digits to English digits while typing.
+document.getElementById("phone").addEventListener("input", function() {
+  const start = this.selectionStart;
+  const oldLength = this.value.length;
+
+  this.value = englishDigits(this.value);
+
+  const pos = Math.max(
+    0,
+    (start || this.value.length) + this.value.length - oldLength
+  );
+
+  try {
+    this.setSelectionRange(pos, pos);
+  } catch (error) {}
+});
+
+document.getElementById("copy").onclick = async function() {
+  updateOrder();
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(output.value);
+    } else {
+      output.focus();
+      output.select();
+
+      if (!document.execCommand("copy")) {
+        throw new Error("Copy failed");
+      }
+    }
+
+    document.getElementById("status").textContent =
+      "Copied! Paste into Viber.";
+
+  } catch (error) {
+    output.focus();
+    output.select();
+
+    document.getElementById("status").textContent =
+      "Text selected. Press and hold, then choose Copy.";
+  }
+};
+
+document.getElementById("selectText").onclick = function() {
+  output.focus();
+  output.select();
+
+  document.getElementById("status").textContent =
+    "Text selected. Press and hold, then choose Copy.";
+};
+
+addProduct();
+</script>
+
+</body>
+</html>
